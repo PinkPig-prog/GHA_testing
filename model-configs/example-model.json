@@ -1,0 +1,34 @@
+{
+  "model_name": "recommendation-engine",
+  "variant": "v2.1.0",
+  "owner_team": "ml-platform",
+  "omd_business_service": "recommendations",
+  "related_features": {
+    "feature_a": "enabled",
+    "feature_b": "disabled"
+  },
+  "inference_configuration": {
+    "response_item_limit": 100
+  },
+  "serving_configuration": {
+    "autoscaling": true,
+    "autoscale_conditions": {
+      "rps": 50
+    },
+    "min_instance": 2,
+    "max_instance": 10,
+    "machine_type": "ml.m5.large",
+    "processor": "cpu",
+    "framework": {
+      "framework_name": "pytorch",
+      "framework_version": "1.12.0"
+    },
+    "shadow_config": {
+      "enabled": false
+    }
+  },
+  "serving_regions": [
+    "us-east-1",
+    "us-west-2"
+  ]
+}

@@ -1,0 +1,212 @@
+name: Model Deployment Automation
+
+on:
+  # Trigger on pushes to main branch (when model is available)
+  push:
+    branches: [main]
+  
+  # Manual trigger for testing
+  workflow_dispatch:
+    inputs:
+      action_type:
+        description: 'Action to perform'
+        required: true
+        default: 'register'
+        type: choice
+        options:
+          - register
+          - update
+
+env:
+  # Hardcoded API base URL (no authentication required!)
+  MODEL_API_URL: "https://backoffice.dev.api.discomax.com/mlp-metadata-manager/meta-manager"
+
+jobs:
+  deploy-model:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          pip install requests
+
+      - name: Determine action type
+        id: action
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "action_type=${{ github.event.inputs.action_type }}" >> $GITHUB_OUTPUT
+          else
+            # Default to 'register' for push events (when model becomes available)
+            echo "action_type=register" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Register Model
+        if: ${{ steps.action.outputs.action_type == 'register' }}
+        run: |
+          cat << 'EOF' > register_model.py
+          import json
+          import requests
+          import os
+          import sys
+          import time
+          
+          def register_model():
+              """Register the hardcoded mlt-batch model"""
+              api_url = os.environ.get('MODEL_API_URL')
+              
+              if not api_url:
+                  print("Error: Missing MODEL_API_URL environment variable")
+                  sys.exit(1)
+              
+              # Hardcoded model configuration - using unique variant to avoid "already exists" error
+              config = {
+                  "model_name": "mlt-batch",
+                  "variant": "sllim-tg-pkg-300-gh-" + str(int(time.time())),
+                  "owner_team": "personalization",
+                  "omd_business_service": "content-discovery",
+                  "related_features": {},
+                  "inference_configuration": {
+                      "response_item_limit": -1
+                  },
+                  "serving_configuration": {
+                      "autoscaling": True,
+                      "autoscale_conditions": {
+                          "rps": 20
+                      },
+                      "min_instance": 1,
+                      "max_instance": 5,
+                      "machine_type": "ml.c5.xlarge",
+                      "processor": "cpu",
+                      "framework": {
+                          "framework_name": "tensorflow",
+                          "framework_version": "2.9.2"
+                      },
+                      "shadow_config": {}
+                  },
+                  "serving_regions": ["us-east-1"]
+              }
+              
+              # Make API call (no authentication required!)
+              headers = {
+                  'Content-Type': 'application/json'
+              }
+              
+              register_url = f"{api_url}/v1/models/register"
+              
+              print(f"🚀 Registering model: {config['model_name']} (variant: {config['variant']})")
+              print(f"📡 API URL: {register_url}")
+              print(f"📋 Payload: {json.dumps(config, indent=2)}")
+              
+              try:
+                  response = requests.post(register_url, json=config, headers=headers)
+                  
+                  print(f"📊 Response Status: {response.status_code}")
+                  print(f"📄 Response Body: {response.text}")
+                  
+                  if response.status_code in [200, 201]:
+                      print("✅ Model registered successfully!")
+                  elif response.status_code == 400 and "already exists" in response.text:
+                      print("ℹ️ Model already exists - this is expected behavior")
+                      print("✅ Registration process completed (model exists)")
+                  else:
+                      print(f"❌ Failed to register model. Status: {response.status_code}")
+                      sys.exit(1)
+                      
+              except requests.exceptions.RequestException as e:
+                  print(f"❌ Request failed: {e}")
+                  sys.exit(1)
+          
+          if __name__ == '__main__':
+              register_model()
+          EOF
+          
+          python register_model.py
+
+      - name: Update Model
+        if: ${{ steps.action.outputs.action_type == 'update' }}
+        run: |
+          cat << 'EOF' > update_model.py
+          import json
+          import requests
+          import os
+          import sys
+          
+          def update_model():
+              """Update the hardcoded mlt-batch model"""
+              api_url = os.environ.get('MODEL_API_URL')
+              
+              if not api_url:
+                  print("Error: Missing MODEL_API_URL environment variable")
+                  sys.exit(1)
+              
+              # Hardcoded update payload (only serving_configuration)
+              update_payload = {
+                  "model": {
+                      "serving_configuration": {
+                          "autoscaling": True,
+                          "autoscale_conditions": {
+                              "rps": 10
+                          },
+                          "min_instance": 1,
+                          "max_instance": 30,
+                          "machine_type": "ml.c5.xlarge",
+                          "processor": "cpu",
+                          "framework": {
+                              "framework_name": "tensorflow",
+                              "framework_version": "2.9.2"
+                          },
+                          "shadow_config": {}
+                      }
+                  }
+              }
+              
+              # Hardcoded model identifier
+              model_id = "CD:personalization:mlt-batch:sllim-tg-pkg-3"
+              
+              headers = {
+                  'Content-Type': 'application/json'
+              }
+              
+              update_url = f"{api_url}/v1/models/update/{model_id}"
+              
+              print(f"🔄 Updating model: {model_id}")
+              print(f"📡 API URL: {update_url}")
+              print(f"📋 Payload: {json.dumps(update_payload, indent=2)}")
+              
+              try:
+                  response = requests.put(update_url, json=update_payload, headers=headers)
+                  
+                  print(f"📊 Response Status: {response.status_code}")
+                  print(f"📄 Response Body: {response.text}")
+                  
+                  if response.status_code in [200, 201]:
+                      print("✅ Model updated successfully!")
+                  else:
+                      print(f"❌ Failed to update model. Status: {response.status_code}")
+                      sys.exit(1)
+                      
+              except requests.exceptions.RequestException as e:
+                  print(f"❌ Request failed: {e}")
+                  sys.exit(1)
+          
+          if __name__ == '__main__':
+              update_model()
+          EOF
+          
+          python update_model.py
+
+      - name: Summary
+        if: always()
+        run: |
+          if [ ${{ job.status }} == 'success' ]; then
+            echo "🎉 Model deployment completed successfully!"
+            echo "Action performed: ${{ steps.action.outputs.action_type }}"
+          else
+            echo "❌ Model deployment failed"
+          fi

@@ -1,0 +1,28 @@
+{
+  "model_name": "mlt-batch",
+  "variant": "sllim-tg-pkg-300",
+  "owner_team": "personalization",
+  "omd_business_service": "content-discovery",
+  "related_features": {},
+  "inference_configuration": {
+    "response_item_limit": -1
+  },
+  "serving_configuration": {
+    "autoscaling": true,
+    "autoscale_conditions": {
+      "rps": 20
+    },
+    "min_instance": 1,
+    "max_instance": 5,
+    "machine_type": "ml.c5.xlarge",
+    "processor": "cpu",
+    "framework": {
+      "framework_name": "tensorflow",
+      "framework_version": "2.9.2"
+    },
+    "shadow_config": {}
+  },
+  "serving_regions": [
+    "us-east-1"
+  ]
+}
